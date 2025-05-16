@@ -506,9 +506,7 @@ MmWaveEnbNetDevice::UpdateConfig(void)
                 if (!m_forceE2FileLogging)
                 {
                     Simulator::Schedule(MicroSeconds(0), &E2Termination::Start, m_e2term);
-                }
-                else
-                {
+
                     m_cuUpFileName = "cu-up-cell-" + std::to_string(m_cellId) + ".txt";
                     std::ofstream csv{};
                     csv.open(m_cuUpFileName.c_str());

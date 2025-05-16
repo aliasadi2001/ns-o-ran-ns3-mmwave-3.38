@@ -167,14 +167,14 @@ static ns3::GlobalValue
 static ns3::GlobalValue
     g_indicationPeriodicity ("indicationPeriodicity",
                              "E2 Indication Periodicity reports (value in seconds)",
-                             ns3::DoubleValue (0.01), ns3::MakeDoubleChecker<double> (0.01, 2.0));
+                             ns3::DoubleValue (0.001), ns3::MakeDoubleChecker<double> (0.001, 2.0));
 
 static ns3::GlobalValue g_simTime ("simTime", "Simulation time in seconds", ns3::DoubleValue (2),
                                    ns3::MakeDoubleChecker<double> (0.1, 100.0));
 
 static ns3::GlobalValue g_outageThreshold ("outageThreshold",
                                            "SNR threshold for outage events [dB]", // use -1000.0 with NoAuto
-                                           ns3::DoubleValue (-50.0),
+                                           ns3::DoubleValue (-100.0),
                                            ns3::MakeDoubleChecker<double> ());
 
 static ns3::GlobalValue g_numberOfRaPreambles (
@@ -187,7 +187,7 @@ static ns3::GlobalValue
     g_handoverMode ("handoverMode",
                     "HO euristic to be used,"
                     "can be only \"NoAuto\", \"FixedTtt\", \"DynamicTtt\",   \"Threshold\"",
-                    ns3::StringValue ("FixedTtt"), ns3::MakeStringChecker ());
+                    ns3::StringValue ("Threshold"), ns3::MakeStringChecker ());
 
 static ns3::GlobalValue g_e2TermIp ("e2TermIp", "The IP address of the RIC E2 termination",
                                     ns3::StringValue ("10.0.2.10"), ns3::MakeStringChecker ());
@@ -217,9 +217,9 @@ main (int argc, char *argv[])
   // LogComponentEnable ("MmWaveEnbNetDevice", LOG_LEVEL_DEBUG);
 
   // The maximum X coordinate of the scenario
-  double maxXAxis = 4000;
+  double maxXAxis = 10000;
   // The maximum Y coordinate of the scenario
-  double maxYAxis = 4000;
+  double maxYAxis = 10000;
 
   // Command line arguments
   CommandLine cmd;
@@ -359,7 +359,7 @@ main (int argc, char *argv[])
   // Center frequency in Hz
   double centerFrequency = 3.5e9;
   // Distance between the mmWave BSs and the two co-located LTE and mmWave BSs in meters
-  double isd = 1500; // (interside distance) - increased for larger cell separation
+  double isd = 3000; // (interside distance) - increased for larger cell separation
   // Number of antennas in each UE
   int numAntennasMcUe = 1;
   // Number of antennas in each mmWave BS
@@ -373,8 +373,12 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::MmWavePhyMacCommon::CenterFreq", DoubleValue (centerFrequency));
  // Config::SetDefault("ns3::UniformPlanarArray::NumRows", UintegerValue(64));
  // Config::SetDefault("ns3::UniformPlanarArray::NumColumns", UintegerValue(64));
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::Exponent", DoubleValue (4.65)); // Set the path loss exponent
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceDistance", DoubleValue (1)); // Reference distance in meters
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (10)); 
   Ptr<MmWaveHelper> mmwaveHelper = CreateObject<MmWaveHelper> ();
-  mmwaveHelper->SetPathlossModelType ("ns3::ThreeGppUmiStreetCanyonPropagationLossModel");
+  mmwaveHelper->SetPathlossModelType ("ns3::LogDistancePropagationLossModel");
+  //mmwaveHelper->SetPathlossModelType ("ns3::ThreeGppUmiStreetCanyonPropagationLossModel");
   mmwaveHelper->SetChannelConditionModelType ("ns3::ThreeGppUmiStreetCanyonChannelConditionModel");
  
   //double downtilt = -9.0 * M_PI / 18;       // 30 degrees downtilt
@@ -395,7 +399,7 @@ main (int argc, char *argv[])
 
   uint8_t nMmWaveEnbNodes = 6;
   uint8_t nLteEnbNodes = 1;
-  uint32_t ues = 3;
+  uint32_t ues = 4;
   uint8_t nUeNodes = ues * nMmWaveEnbNodes;
 
   NS_LOG_INFO (" Bandwidth " << bandwidth << " centerFrequency " << double (centerFrequency)
@@ -439,8 +443,8 @@ main (int argc, char *argv[])
   allEnbNodes.Add (mmWaveEnbNodes);
 
   // Split into two groups:
-  // Group 1 (cells 2,3,4): 1x1 antennas for good service
-  // Group 2 (cells 5,6,7): 16x16 antennas for poor service
+  // Group 1 (cells 2,3,4,5,6): 64x64 antennas for good service
+  // Group 2 (cell 7 only): 4x4 antennas for poor service
   NodeContainer mmWaveEnbGroup1;
   NodeContainer mmWaveEnbGroup2;
   
@@ -454,20 +458,20 @@ main (int argc, char *argv[])
       uint8_t cellId = i + 2;  // Cell IDs start from 2
       NS_LOG_UNCOND("Processing mmWave node index=" << (int)i << " with cell ID=" << (int)cellId);
       
-      if (cellId <= 4)  // Cells 2,3,4
+      if (cellId <= 4)  // Cells 2,3,4,5,6
       {
           mmWaveEnbGroup1.Add(node);
-          NS_LOG_UNCOND("Added to Group 1 (1x1 good service): cell ID=" << (int)cellId);
+          NS_LOG_UNCOND("Added to Group 1 (64x64 good service): cell ID=" << (int)cellId);
       }
-      else  // Cells 5,6,7
+      else  // Cells 5,6,7 (poor service)
       {
           mmWaveEnbGroup2.Add(node);
-          NS_LOG_UNCOND("Added to Group 2 (16x16 poor service): cell ID=" << (int)cellId);
+          NS_LOG_UNCOND("Added to Group 2 (4x4 poor service): cell ID=" << (int)cellId);
       }
   }
 
-  NS_LOG_UNCOND("Group 1 size: " << mmWaveEnbGroup1.GetN() << " nodes (cells 2,3,4 - good service)");
-  NS_LOG_UNCOND("Group 2 size: " << mmWaveEnbGroup2.GetN() << " nodes (cells 5,6,7 - poor service)");
+  NS_LOG_UNCOND("Group 1 size: " << mmWaveEnbGroup1.GetN() << " nodes (cells 2,3,4,5,6 - 64x64 good service)");
+  NS_LOG_UNCOND("Group 2 size: " << mmWaveEnbGroup2.GetN() << " nodes (cell 7 - 4x4 poor service)");
 
   // Position
   Vector centerPosition = Vector (maxXAxis / 2, maxYAxis / 2, 3);
@@ -501,7 +505,7 @@ main (int argc, char *argv[])
   
   // Calculate number of UEs per mmWave cell
   uint32_t numUEsPerCell = nUeNodes / nMmWaveEnbNodes;
-  double initialRadius = 400.0; // Initial distance from cell center in meters (increased for better separation)
+  double initialRadius = 450.0; // Initial distance from cell center in meters (increased for better separation)
   
   NS_LOG_UNCOND("Total UEs: " << nUeNodes << ", UEs per cell: " << numUEsPerCell);
 
@@ -530,7 +534,7 @@ main (int argc, char *argv[])
           
           uePositionAlloc->Add(uePos);
           
-          NS_LOG_UNCOND("UE " << (cellIndex * numUEsPerCell + ueIndex) 
+          NS_LOG_UNCOND("UE " << (cellIndex * numUEsPerCell + ueIndex + 1)
                        << " placed at (" << uePos.x << "," << uePos.y 
                        << ") near cell " << (cellIndex + 2));
       }
@@ -540,7 +544,7 @@ main (int argc, char *argv[])
   uemobility.SetMobilityModel ("ns3::RandomWalk2dOutdoorMobilityModel",
                               "Mode", StringValue ("Time"),
                               "Time", StringValue ("2s"),
-                              "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=2.0]"),
+                              "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=0.0]"),
                               "Bounds", RectangleValue (Rectangle (0, maxXAxis, 0, maxYAxis)));
   
   uemobility.SetPositionAllocator(uePositionAlloc);
@@ -552,15 +556,15 @@ main (int argc, char *argv[])
   // Configure first group (1x1 antennas with IsotropicAntennaModel)
   Config::SetDefault("ns3::PhasedArrayModel::AntennaElement", 
                     PointerValue(CreateObject<IsotropicAntennaModel>()));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns", UintegerValue(1));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(1));
+  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns", UintegerValue(16));
+  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(16));
   NetDeviceContainer mmWaveEnbDevsGroup1 = mmwaveHelper->InstallEnbDevice(mmWaveEnbGroup1);
 
   // Configure second group (16x16 antennas with ThreeGppAntennaModel)
   Config::SetDefault("ns3::PhasedArrayModel::AntennaElement", 
                     PointerValue(CreateObject<ThreeGppAntennaModel>()));
   mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns", UintegerValue(1));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(16));
+  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(1));
   NetDeviceContainer mmWaveEnbDevsGroup2 = mmwaveHelper->InstallEnbDevice(mmWaveEnbGroup2);
 
   // Combine all mmWave eNB devices

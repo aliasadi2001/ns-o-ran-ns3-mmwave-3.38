@@ -28,8 +28,6 @@
 #include "ns3/epc-helper.h"
 #include "ns3/mmwave-point-to-point-epc-helper.h"
 #include "ns3/lte-helper.h"
-#include "ns3/isotropic-antenna-model.h"
-#include "ns3/three-gpp-antenna-model.h"
 
 using namespace ns3;
 using namespace mmwave;
@@ -162,19 +160,19 @@ static ns3::GlobalValue g_reducedPmValues ("reducedPmValues", "If true, use a su
 static ns3::GlobalValue
     g_hoSinrDifference ("hoSinrDifference",
                         "The value for which an handover between MmWave eNB is triggered",
-                        ns3::DoubleValue (3), ns3::MakeDoubleChecker<double> ());
+                        ns3::DoubleValue (10), ns3::MakeDoubleChecker<double> ());
 
 static ns3::GlobalValue
     g_indicationPeriodicity ("indicationPeriodicity",
                              "E2 Indication Periodicity reports (value in seconds)",
                              ns3::DoubleValue (0.01), ns3::MakeDoubleChecker<double> (0.01, 2.0));
 
-static ns3::GlobalValue g_simTime ("simTime", "Simulation time in seconds", ns3::DoubleValue (2),
+static ns3::GlobalValue g_simTime ("simTime", "Simulation time in seconds", ns3::DoubleValue (6),
                                    ns3::MakeDoubleChecker<double> (0.1, 100.0));
 
 static ns3::GlobalValue g_outageThreshold ("outageThreshold",
                                            "SNR threshold for outage events [dB]", // use -1000.0 with NoAuto
-                                           ns3::DoubleValue (-50.0),
+                                           ns3::DoubleValue (-25.0),
                                            ns3::MakeDoubleChecker<double> ());
 
 static ns3::GlobalValue g_numberOfRaPreambles (
@@ -187,7 +185,7 @@ static ns3::GlobalValue
     g_handoverMode ("handoverMode",
                     "HO euristic to be used,"
                     "can be only \"NoAuto\", \"FixedTtt\", \"DynamicTtt\",   \"Threshold\"",
-                    ns3::StringValue ("FixedTtt"), ns3::MakeStringChecker ());
+                    ns3::StringValue ("DynamicTtt"), ns3::MakeStringChecker ());
 
 static ns3::GlobalValue g_e2TermIp ("e2TermIp", "The IP address of the RIC E2 termination",
                                     ns3::StringValue ("10.0.2.10"), ns3::MakeStringChecker ());
@@ -202,9 +200,6 @@ static ns3::GlobalValue g_controlFileName ("controlFileName",
                                            ns3::StringValue (""),
                                            ns3::MakeStringChecker ());
 
-static ns3::GlobalValue q_useSemaphores ("useSemaphores", "If true, enables the use of semaphores for external environment control",
-                                        ns3::BooleanValue (false), ns3::MakeBooleanChecker ());
-
 int
 main (int argc, char *argv[])
 {
@@ -214,7 +209,7 @@ main (int argc, char *argv[])
   // LogComponentEnable ("E2Termination", LOG_LEVEL_LOGIC);
 
   // LogComponentEnable ("LteEnbNetDevice", LOG_LEVEL_ALL);
-  // LogComponentEnable ("MmWaveEnbNetDevice", LOG_LEVEL_DEBUG);
+  LogComponentEnable ("MmWaveEnbNetDevice", LOG_LEVEL_DEBUG);
 
   // The maximum X coordinate of the scenario
   double maxXAxis = 4000;
@@ -255,16 +250,12 @@ main (int argc, char *argv[])
 
   GlobalValue::GetValueByName ("e2lteEnabled", booleanValue);
   bool e2lteEnabled = booleanValue.Get ();
-
   GlobalValue::GetValueByName ("e2nrEnabled", booleanValue);
   bool e2nrEnabled = booleanValue.Get ();
-
   GlobalValue::GetValueByName ("e2du", booleanValue);
   bool e2du = booleanValue.Get ();
-
   GlobalValue::GetValueByName ("e2cuUp", booleanValue);
   bool e2cuUp = booleanValue.Get ();
-
   GlobalValue::GetValueByName ("e2cuCp", booleanValue);
   bool e2cuCp = booleanValue.Get ();
 
@@ -273,21 +264,14 @@ main (int argc, char *argv[])
 
   GlobalValue::GetValueByName ("indicationPeriodicity", doubleValue);
   double indicationPeriodicity = doubleValue.Get ();
-
   GlobalValue::GetValueByName ("controlFileName", stringValue);
   std::string controlFilename = stringValue.Get ();
-
-  GlobalValue::GetValueByName ("useSemaphores", booleanValue);
-  bool useSemaphores = booleanValue.Get ();
-
 
   NS_LOG_UNCOND ("e2lteEnabled " << e2lteEnabled << " e2nrEnabled " << e2nrEnabled << " e2du "
                                  << e2du << " e2cuCp " << e2cuCp << " e2cuUp " << e2cuUp
                                  << " controlFilename " << controlFilename
-                                 << " useSemaphores " << useSemaphores
                                  << " indicationPeriodicity " << indicationPeriodicity);
 
-  Config::SetDefault ("ns3::LteEnbNetDevice::UseSemaphores", BooleanValue (useSemaphores));
   Config::SetDefault ("ns3::LteEnbNetDevice::ControlFileName", StringValue (controlFilename));
   Config::SetDefault ("ns3::LteEnbNetDevice::E2Periodicity", DoubleValue (indicationPeriodicity));
   Config::SetDefault ("ns3::MmWaveEnbNetDevice::E2Periodicity",
@@ -295,15 +279,14 @@ main (int argc, char *argv[])
 
   Config::SetDefault ("ns3::MmWaveHelper::E2ModeLte", BooleanValue (e2lteEnabled));
   Config::SetDefault ("ns3::MmWaveHelper::E2ModeNr", BooleanValue (e2nrEnabled));
-  Config::SetDefault ("ns3::MmWaveHelper::E2Periodicity", DoubleValue (indicationPeriodicity));
 
   // The DU PM reports should come from both NR gNB as well as LTE eNB,
   // since in the RLC/MAC/PHY entities are present in BOTH NR gNB as well as LTE eNB.
   // DU reports from LTE eNB are not implemented in this release
   Config::SetDefault ("ns3::MmWaveEnbNetDevice::EnableDuReport", BooleanValue (e2du));
 
-  // The CU-UP PM reports should only come from LTE eNB, since in the NS3 "EN-DC
-  // simulation (Option 3A)", the PDCP is only in the LTE eNB and NOT in the NR gNB
+  // The CU-UP PM reports should only come from LTE eNB, since in the NS3 “EN-DC
+  // simulation (Option 3A)”, the PDCP is only in the LTE eNB and NOT in the NR gNB
   Config::SetDefault ("ns3::MmWaveEnbNetDevice::EnableCuUpReport", BooleanValue (e2cuUp));
   Config::SetDefault ("ns3::LteEnbNetDevice::EnableCuUpReport", BooleanValue (e2cuUp));
 
@@ -330,6 +313,28 @@ main (int argc, char *argv[])
   //Config::SetDefault ("ns3::MmWaveBearerStatsCalculator::EpochDuration", TimeValue (MilliSeconds (10.0)));
 
   // set to false to use the 3GPP radiation pattern (proper configuration of the bearing and downtilt angles is needed)
+  //Config::SetDefault ("ns3::MmWaveBearerStatsCalculator::EpochDuration", TimeValue (MilliSeconds (10.0)));
+
+//  // set to false to use the 3GPP radiation pattern (proper configuration of the bearing and downtilt angles is needed)
+//
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::IsotropicElements", BooleanValue (true)); // Use directional pattern
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::AntennaHorizontalSpacing", DoubleValue (8)); // Horizontal spacing in multiples of wavelength
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::AntennaVerticalSpacing", DoubleValue (8)); // Vertical spacing in multiples of wavelength
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::ElementGain", DoubleValue (0.0)); 
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::NumColumns", UintegerValue (1)); // 4 antennas
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::NumRows", UintegerValue (1)); // Single row
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::BearingAngle", DoubleValue (0.0)); // Reference angle (0°)
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::AntennaHorizontalSpacing", DoubleValue (0.25)); // Spacing for 90° separation
+  //Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::DowntiltAngle", DoubleValue (0.0 * M_PI / 180.0)); // 15° downtilt
+  Config::SetDefault("ns3::ParabolicAntennaModel::Beamwidth", DoubleValue(30.0));
+  Config::SetDefault("ns3::ParabolicAntennaModel::MaxAttenuation", DoubleValue(30.0));
+  Config::SetDefault("ns3::ParabolicAntennaModel::Orientation", DoubleValue(45.0));                                                                                            //
+ // Config::SetDefault ("ns3::ParabolicAntennaModel::Beamwidth", DoubleValue (70.0)); // 10° beamwidth for high gain
+ // Config::SetDefault ("ns3::ParabolicAntennaModel::MaxAttenuation", DoubleValue (100.0)); // Maximum attenuation (dB)
+  //Config::SetDefault ("ns3::ParabolicAntennaModel::Orientation", DoubleValue (50.0)); // Orientation angle (0°)
+                                                                                     //
+//  Config::SetDefault ("ns3::IsotropicAntennaModel::Gain", DoubleValue (35.0)); // Set gain to 5 dB
+  
   Config::SetDefault ("ns3::ThreeGppChannelModel::UpdatePeriod", TimeValue (MilliSeconds (100.0)));
   Config::SetDefault ("ns3::ThreeGppChannelConditionModel::UpdatePeriod",
                       TimeValue (MilliSeconds (100)));
@@ -341,15 +346,7 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::LteRlcUmLowLat::MaxTxBufferSize",
                       UintegerValue (bufferSize * 1024 * 1024));
   Config::SetDefault ("ns3::LteRlcAm::MaxTxBufferSize", UintegerValue (bufferSize * 1024 * 1024));
-//
-//  Config::SetDefault("ns3::UniformPlanarArray::AntennaHorizontalSpacing", DoubleValue(0.5));
-//  Config::SetDefault("ns3::UniformPlanarArray::AntennaVerticalSpacing", DoubleValue(0.5));
-//  Config::SetDefault("ns3::UniformPlanarArray::NumColumns", UintegerValue(1));
-//  Config::SetDefault("ns3::UniformPlanarArray::NumRows", UintegerValue(1));
-//  Config::SetDefault("ns3::UniformPlanarArray::BearingAngle", DoubleValue(M_PI));      // radians
-//  Config::SetDefault("ns3::UniformPlanarArray::DowntiltAngle", DoubleValue(M_PI/2));     // radians
-//  Config::SetDefault("ns3::UniformPlanarArray::PolSlantAngle", DoubleValue(M_PI/2));     // radians
-//
+
   Config::SetDefault ("ns3::LteEnbRrc::OutageThreshold", DoubleValue (outageThreshold));
   Config::SetDefault ("ns3::LteEnbRrc::SecondaryCellHandoverMode", StringValue (handoverMode));
   Config::SetDefault ("ns3::LteEnbRrc::HoSinrDifference", DoubleValue (hoSinrDifference));
@@ -359,43 +356,38 @@ main (int argc, char *argv[])
   // Center frequency in Hz
   double centerFrequency = 3.5e9;
   // Distance between the mmWave BSs and the two co-located LTE and mmWave BSs in meters
-  double isd = 1500; // (interside distance) - increased for larger cell separation
+  double isd = 1000; // (interside distance)
   // Number of antennas in each UE
   int numAntennasMcUe = 1;
   // Number of antennas in each mmWave BS
-  int numAntennasMmWave = 1;
+  int numAntennasMmWave = 4;
 
   NS_LOG_INFO ("Bandwidth " << bandwidth << " centerFrequency " << double (centerFrequency)
                             << " isd " << isd << " numAntennasMcUe " << numAntennasMcUe
                             << " numAntennasMmWave " << numAntennasMmWave);
 
+  // Set the number of antennas in the devices
+  Config::SetDefault ("ns3::McUeNetDevice::AntennaNum", UintegerValue (numAntennasMcUe));
+  Config::SetDefault ("ns3::MmWaveNetDevice::AntennaNum", UintegerValue (numAntennasMmWave));
   Config::SetDefault ("ns3::MmWavePhyMacCommon::Bandwidth", DoubleValue (bandwidth));
   Config::SetDefault ("ns3::MmWavePhyMacCommon::CenterFreq", DoubleValue (centerFrequency));
- // Config::SetDefault("ns3::UniformPlanarArray::NumRows", UintegerValue(64));
- // Config::SetDefault("ns3::UniformPlanarArray::NumColumns", UintegerValue(64));
+//
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::Exponent", DoubleValue (3.0)); // Set the path loss exponent
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceDistance", DoubleValue (1)); // Reference distance in meters
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (5)); // Path loss at reference distance in dB
+//
   Ptr<MmWaveHelper> mmwaveHelper = CreateObject<MmWaveHelper> ();
-  mmwaveHelper->SetPathlossModelType ("ns3::ThreeGppUmiStreetCanyonPropagationLossModel");
+//  mmwaveHelper->SetPathlossModelType ("ns3::ThreeGppUmiStreetCanyonPropagationLossModel");
+//  mmwaveHelper->SetChannelConditionModelType ("ns3::ThreeGppUmiStreetCanyonChannelConditionModel");
+  mmwaveHelper->SetPathlossModelType ("ns3::LogDistancePropagationLossModel");
   mmwaveHelper->SetChannelConditionModelType ("ns3::ThreeGppUmiStreetCanyonChannelConditionModel");
- 
-  //double downtilt = -9.0 * M_PI / 18;       // 30 degrees downtilt
-  //double bearing = 0.0 * M_PI / 4;        // 45 degrees bearing
-  // Set the number of antennas in the devices
- // mmwaveHelper->SetEnbPhasedArrayModelType("ns3::UniformPlanarArray");
- // mmwaveHelper->SetEnbPhasedArrayModelAttribute("DowntiltAngle", DoubleValue(downtilt));
- // mmwaveHelper->SetEnbPhasedArrayModelAttribute("BearingAngle", DoubleValue(bearing));
- // mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(std::sqrt(numAntennasMmWave)));
- // mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns", UintegerValue(std::sqrt(numAntennasMmWave)));
- // mmwaveHelper->SetUePhasedArrayModelAttribute("NumColumns", UintegerValue(std::sqrt(numAntennasMcUe)));
- // mmwaveHelper->SetUePhasedArrayModelAttribute("NumRows", UintegerValue(std::sqrt(numAntennasMcUe)));
- // mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns",UintegerValue(std::sqrt(numAntennasMmWave)));
-  //mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(std::sqrt(numAntennasMmWave)));
 
   Ptr<MmWavePointToPointEpcHelper> epcHelper = CreateObject<MmWavePointToPointEpcHelper> ();
   mmwaveHelper->SetEpcHelper (epcHelper);
 
   uint8_t nMmWaveEnbNodes = 6;
   uint8_t nLteEnbNodes = 1;
-  uint32_t ues = 3;
+  uint32_t ues = 4;
   uint8_t nUeNodes = ues * nMmWaveEnbNodes;
 
   NS_LOG_INFO (" Bandwidth " << bandwidth << " centerFrequency " << double (centerFrequency)
@@ -437,38 +429,21 @@ main (int argc, char *argv[])
   ueNodes.Create (nUeNodes);
   allEnbNodes.Add (lteEnbNodes);
   allEnbNodes.Add (mmWaveEnbNodes);
-
-  // Split into two groups:
-  // Group 1 (cells 2,3,4): 1x1 antennas for good service
-  // Group 2 (cells 5,6,7): 16x16 antennas for poor service
   NodeContainer mmWaveEnbGroup1;
   NodeContainer mmWaveEnbGroup2;
-  
-  NS_LOG_UNCOND("Total mmWave nodes: " << (int)nMmWaveEnbNodes);
-  NS_LOG_UNCOND("LTE nodes start at ID: " << lteEnbNodes.Get(0)->GetId());
-  NS_LOG_UNCOND("mmWave nodes start at ID: " << mmWaveEnbNodes.Get(0)->GetId());
+  uint8_t halfMmWaveNodes = nMmWaveEnbNodes / 2;
   
   for (uint8_t i = 0; i < nMmWaveEnbNodes; ++i)
   {
-      Ptr<Node> node = mmWaveEnbNodes.Get(i);
-      uint8_t cellId = i + 2;  // Cell IDs start from 2
-      NS_LOG_UNCOND("Processing mmWave node index=" << (int)i << " with cell ID=" << (int)cellId);
-      
-      if (cellId <= 4)  // Cells 2,3,4
+      if (i < halfMmWaveNodes)
       {
-          mmWaveEnbGroup1.Add(node);
-          NS_LOG_UNCOND("Added to Group 1 (1x1 good service): cell ID=" << (int)cellId);
+          mmWaveEnbGroup1.Add(mmWaveEnbNodes.Get(i));
       }
-      else  // Cells 5,6,7
+      else
       {
-          mmWaveEnbGroup2.Add(node);
-          NS_LOG_UNCOND("Added to Group 2 (16x16 poor service): cell ID=" << (int)cellId);
+          mmWaveEnbGroup2.Add(mmWaveEnbNodes.Get(i));
       }
   }
-
-  NS_LOG_UNCOND("Group 1 size: " << mmWaveEnbGroup1.GetN() << " nodes (cells 2,3,4 - good service)");
-  NS_LOG_UNCOND("Group 2 size: " << mmWaveEnbGroup2.GetN() << " nodes (cells 5,6,7 - poor service)");
-
   // Position
   Vector centerPosition = Vector (maxXAxis / 2, maxYAxis / 2, 3);
 
@@ -495,83 +470,83 @@ main (int argc, char *argv[])
   enbmobility.SetPositionAllocator (enbPositionAlloc);
   enbmobility.Install (allEnbNodes);
 
-  // UE Mobility - distribute UEs evenly around mmWave cells
+//  MobilityHelper uemobility;
+//  uint32_t numRows = 4;       // Number of rows in the rectangle
+//  uint32_t numCols = 7;       // Number of columns in the rectangle
+//  double spacingX = 500.0;    // Spacing between UEs in the X direction (meters)
+//  double spacingY = 850.0;    // Spacing between UEs in the Y direction (meters)
+//
+//  Ptr<GridPositionAllocator> uePositionAlloc = CreateObject<GridPositionAllocator> ();
+//
+//  uePositionAlloc->SetAttribute ("GridWidth", UintegerValue (numCols));
+//  uePositionAlloc->SetAttribute ("MinX", DoubleValue (centerPosition.x - (numCols - 1) * spacingX / 2));
+//  uePositionAlloc->SetAttribute ("MinY", DoubleValue (centerPosition.y - (numRows - 1) * spacingY / 2));
+//  uePositionAlloc->SetAttribute ("DeltaX", DoubleValue (spacingX));
+//  uePositionAlloc->SetAttribute ("DeltaY", DoubleValue (spacingY));
+//  uePositionAlloc->SetAttribute ("LayoutType", StringValue ("RowFirst"));
+//
+//  uemobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+//  uemobility.SetPositionAllocator (uePositionAlloc);
+//  uemobility.Install (ueNodes);
+//
+// Define grid parameters for UE placement
+//
   MobilityHelper uemobility;
-  Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
+  uemobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
   
-  // Calculate number of UEs per mmWave cell
-  uint32_t numUEsPerCell = nUeNodes / nMmWaveEnbNodes;
-  double initialRadius = 400.0; // Initial distance from cell center in meters (increased for better separation)
+  // Calculate grid dimensions - make it as square as possible
+  uint32_t totalUes = nUeNodes;
+  uint32_t gridWidth = ceil(sqrt(totalUes));
+  uint32_t gridHeight = ceil(static_cast<double>(totalUes) / gridWidth);
   
-  NS_LOG_UNCOND("Total UEs: " << nUeNodes << ", UEs per cell: " << numUEsPerCell);
-
-  // For each mmWave eNB
-  for (uint8_t cellIndex = 0; cellIndex < nMmWaveEnbNodes; cellIndex++)
-  {
-      // Get the position of current mmWave eNB
-      Ptr<MobilityModel> enbMobility = mmWaveEnbNodes.Get(cellIndex)->GetObject<MobilityModel>();
-      Vector enbPos = enbMobility->GetPosition();
-      
-      NS_LOG_UNCOND("Placing UEs around mmWave cell " << (cellIndex + 2) 
-                    << " at position (" << enbPos.x << "," << enbPos.y << ")");
-
-      // Place UEs in a circle around this eNB
-      for (uint32_t ueIndex = 0; ueIndex < numUEsPerCell; ueIndex++)
-      {
-          // Calculate angle for even distribution
-          double angle = (ueIndex * 2 * M_PI) / numUEsPerCell;
-          
-          // Calculate position
-          Vector uePos = Vector(
-              enbPos.x + initialRadius * cos(angle),
-              enbPos.y + initialRadius * sin(angle),
-              1.5  // UE height
-          );
-          
-          uePositionAlloc->Add(uePos);
-          
-          NS_LOG_UNCOND("UE " << (cellIndex * numUEsPerCell + ueIndex) 
-                       << " placed at (" << uePos.x << "," << uePos.y 
-                       << ") near cell " << (cellIndex + 2));
-      }
+  // Calculate spacing between UEs
+  double xSpacing = maxXAxis / (gridWidth + 1);
+  double ySpacing = maxYAxis / (gridHeight + 1);
+  
+  // Create position allocator
+  Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator>();
+  
+  // Place UEs in grid positions
+  uint32_t ueIndex = 0;
+  for (uint32_t row = 1; row <= gridHeight && ueIndex < totalUes; row++) {
+    for (uint32_t col = 1; col <= gridWidth && ueIndex < totalUes; col++) {
+      double xPos = col * xSpacing;
+      double yPos = row * ySpacing;
+      uePositionAlloc->Add(Vector(xPos, yPos, 1.5)); // 1.5m height for UEs
+      ueIndex++;
+    }
   }
-
-  // Configure UE mobility with controlled random walk
-  uemobility.SetMobilityModel ("ns3::RandomWalk2dOutdoorMobilityModel",
-                              "Mode", StringValue ("Time"),
-                              "Time", StringValue ("2s"),
-                              "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=2.0]"),
-                              "Bounds", RectangleValue (Rectangle (0, maxXAxis, 0, maxYAxis)));
   
+  // Set up random walk mobility model
+  Ptr<UniformRandomVariable> speed = CreateObject<UniformRandomVariable>();
+  speed->SetAttribute("Min", DoubleValue(2.0));  // 2.0 m/s minimum speed
+  speed->SetAttribute("Max", DoubleValue(4.0));  // 4.0 m/s maximum speed
+
+  // Configure mobility - using RandomWalk2dOutdoorMobilityModel
+  uemobility.SetMobilityModel("ns3::RandomWalk2dOutdoorMobilityModel",
+                             "Speed", PointerValue(speed),
+                             "Bounds", RectangleValue(Rectangle(0, maxXAxis, 0, maxYAxis)));
+
+  // Set the position allocator (using our grid positions as starting points)
   uemobility.SetPositionAllocator(uePositionAlloc);
   uemobility.Install(ueNodes);
 
+//
   // Install mmWave, lte, mc Devices to the nodes
   NetDeviceContainer lteEnbDevs = mmwaveHelper->InstallLteEnbDevice (lteEnbNodes);
 
-  // Configure first group (1x1 antennas with IsotropicAntennaModel)
-  Config::SetDefault("ns3::PhasedArrayModel::AntennaElement", 
-                    PointerValue(CreateObject<IsotropicAntennaModel>()));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns", UintegerValue(1));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(1));
   NetDeviceContainer mmWaveEnbDevsGroup1 = mmwaveHelper->InstallEnbDevice(mmWaveEnbGroup1);
-
-  // Configure second group (16x16 antennas with ThreeGppAntennaModel)
-  Config::SetDefault("ns3::PhasedArrayModel::AntennaElement", 
-                    PointerValue(CreateObject<ThreeGppAntennaModel>()));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumColumns", UintegerValue(1));
-  mmwaveHelper->SetEnbPhasedArrayModelAttribute("NumRows", UintegerValue(16));
+ // Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::IsotropicElements", BooleanValue (true));
+//  Config::SetDefault ("ns3::ThreeGppAntennaArrayModel::ElementGain", DoubleValue (0.0));
+  Config::SetDefault("ns3::ParabolicAntennaModel::Beamwidth", DoubleValue(30.0));
+  Config::SetDefault("ns3::ParabolicAntennaModel::MaxAttenuation", DoubleValue(30.0));
+  Config::SetDefault("ns3::ParabolicAntennaModel::Orientation", DoubleValue(45.0));
   NetDeviceContainer mmWaveEnbDevsGroup2 = mmwaveHelper->InstallEnbDevice(mmWaveEnbGroup2);
 
-  // Combine all mmWave eNB devices
+  NetDeviceContainer mcUeDevs = mmwaveHelper->InstallMcUeDevice (ueNodes);
   NetDeviceContainer mmWaveEnbDevs;
   mmWaveEnbDevs.Add(mmWaveEnbDevsGroup1);
   mmWaveEnbDevs.Add(mmWaveEnbDevsGroup2);
-
-  // Configure UE antenna array (2x2 for all UEs)
-  mmwaveHelper->SetUePhasedArrayModelAttribute("NumColumns", UintegerValue(2));
-  mmwaveHelper->SetUePhasedArrayModelAttribute("NumRows", UintegerValue(2));
-  NetDeviceContainer mcUeDevs = mmwaveHelper->InstallMcUeDevice(ueNodes);
 
   // Install the IP stack on the UEs
   internet.Install (ueNodes);

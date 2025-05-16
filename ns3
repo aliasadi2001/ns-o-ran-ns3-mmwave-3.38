@@ -1392,7 +1392,8 @@ def refuse_run_as_root():
     # Check if the user is root and refuse to run
     username = os.getenv("USER", "")
     if username == "root":
-        raise Exception("Refusing to run as root. --enable-sudo will request your password when needed")
+       pass
+       # raise Exception("Refusing to run as root. --enable-sudo will request your password when needed")
 
 
 def main():
