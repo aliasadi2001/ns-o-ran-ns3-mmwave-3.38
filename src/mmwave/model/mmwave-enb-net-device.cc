@@ -690,7 +690,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageCuUp(std::string plmId)
 {
     Ptr<MmWaveIndicationMessageHelper> indicationMessageHelper =
         Create<MmWaveIndicationMessageHelper>(IndicationMessageHelper::IndicationMessageType::CuUp,
-                                              m_forceE2FileLogging,
+                                              !m_forceE2FileLogging,
                                               m_reducedPmValues);
 
     // get <rnti, UeManager> map of connected UEs
@@ -851,7 +851,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageCuUp(std::string plmId)
     NS_LOG_DEBUG(Simulator::Now().GetSeconds()
                  << " " << m_cellId << " cell volume mmWave " << cellDlTxVolume);
 
-    if (m_forceE2FileLogging)
+    if (!m_forceE2FileLogging)
     {
         std::ofstream csv{};
         csv.open(m_cuUpFileName.c_str(), std::ios_base::app);
@@ -884,9 +884,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageCuUp(std::string plmId)
         }
         csv.close();
         return nullptr;
-    }
-    else
-    {
+
         return indicationMessageHelper->CreateIndicationMessage();
     }
 }
@@ -938,7 +936,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageCuCp(std::string plmId)
 {
     Ptr<MmWaveIndicationMessageHelper> indicationMessageHelper =
         Create<MmWaveIndicationMessageHelper>(IndicationMessageHelper::IndicationMessageType::CuCp,
-                                              m_forceE2FileLogging,
+                                              !m_forceE2FileLogging,
                                               m_reducedPmValues);
 
     auto ueMap = m_rrc->GetUeMap();
@@ -1055,7 +1053,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageCuCp(std::string plmId)
         indicationMessageHelper->FillCuCpValues(ueMap.size()); // Number of Active UEs
     }
 
-    if (m_forceE2FileLogging)
+    if (!m_forceE2FileLogging)
     {
         std::ofstream csv{};
         csv.open(m_cuCpFileName.c_str(), std::ios_base::app);
@@ -1091,9 +1089,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageCuCp(std::string plmId)
         }
         csv.close();
         return nullptr;
-    }
-    else
-    {
+
         return indicationMessageHelper->CreateIndicationMessage();
     }
 }
@@ -1124,7 +1120,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageDu(std::string plmId, uint16_t nrCe
 {
     Ptr<MmWaveIndicationMessageHelper> indicationMessageHelper =
         Create<MmWaveIndicationMessageHelper>(IndicationMessageHelper::IndicationMessageType::Du,
-                                              m_forceE2FileLogging,
+                                              !m_forceE2FileLogging,
                                               m_reducedPmValues);
 
     auto ueMap = m_rrc->GetUeMap();
@@ -1426,7 +1422,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageDu(std::string plmId, uint16_t nrCe
         indicationMessageHelper->FillDuValues(plmId + std::to_string(nrCellId));
     }
 
-    if (m_forceE2FileLogging)
+    if (!m_forceE2FileLogging)
     {
         std::ofstream csv{};
         csv.open(m_duFileName.c_str(), std::ios_base::app);
@@ -1502,9 +1498,7 @@ MmWaveEnbNetDevice::BuildRicIndicationMessageDu(std::string plmId, uint16_t nrCe
         csv.close();
 
         return nullptr;
-    }
-    else
-    {
+
         return indicationMessageHelper->CreateIndicationMessage();
     }
 }
