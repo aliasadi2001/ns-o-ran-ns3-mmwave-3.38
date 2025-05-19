@@ -134,6 +134,39 @@ PrintPosition (Ptr<Node> node)
                                                              << Simulator::Now ().GetSeconds ());
 }
 
+void
+LogUePositions ()
+{
+  NS_LOG_UNCOND ("--- UE Positions at time: " << Simulator::Now ().GetSeconds () << "s ---");
+  for (NodeList::Iterator it = NodeList::Begin (); it != NodeList::End (); ++it)
+    {
+      Ptr<Node> node = *it;
+
+      // Check only UE nodes
+      if (!node->GetObject<MobilityModel>())
+        continue;
+
+      for (uint32_t j = 0; j < node->GetNDevices (); ++j)
+        {
+          Ptr<MmWaveUeNetDevice> mmuedev = node->GetDevice (j)->GetObject<MmWaveUeNetDevice> ();
+          Ptr<McUeNetDevice> mcue = node->GetDevice (j)->GetObject<McUeNetDevice> ();
+
+          if (mmuedev || mcue)
+            {
+              Vector pos = node->GetObject<MobilityModel> ()->GetPosition ();
+              uint64_t imsi = mmuedev ? mmuedev->GetImsi () : mcue->GetImsi ();
+              NS_LOG_UNCOND ("UE IMSI " << imsi << " at position (" 
+                                        << pos.x << ", " << pos.y << ")");
+            }
+        }
+    }
+
+  // Schedule next log
+  Simulator::Schedule (Seconds (0.1), &LogUePositions);
+}
+
+
+
 static ns3::GlobalValue g_bufferSize ("bufferSize", "RLC tx buffer size (MB)",
                                       ns3::UintegerValue (10),
                                       ns3::MakeUintegerChecker<uint32_t> ());
@@ -167,7 +200,7 @@ static ns3::GlobalValue
 static ns3::GlobalValue
     g_indicationPeriodicity ("indicationPeriodicity",
                              "E2 Indication Periodicity reports (value in seconds)",
-                             ns3::DoubleValue (0.05), ns3::MakeDoubleChecker<double> (0.05, 2.0));
+                             ns3::DoubleValue (0.01), ns3::MakeDoubleChecker<double> (0.01, 2.0));
 
 static ns3::GlobalValue g_simTime ("simTime", "Simulation time in seconds", ns3::DoubleValue (2),
                                    ns3::MakeDoubleChecker<double> (0.1, 100.0));
@@ -187,7 +220,7 @@ static ns3::GlobalValue
     g_handoverMode ("handoverMode",
                     "HO euristic to be used,"
                     "can be only \"NoAuto\", \"FixedTtt\", \"DynamicTtt\",   \"Threshold\"",
-                    ns3::StringValue ("Threshold"), ns3::MakeStringChecker ());
+                    ns3::StringValue ("NoAuto"), ns3::MakeStringChecker ());
 
 static ns3::GlobalValue g_e2TermIp ("e2TermIp", "The IP address of the RIC E2 termination",
                                     ns3::StringValue ("10.0.2.10"), ns3::MakeStringChecker ());
@@ -359,7 +392,7 @@ main (int argc, char *argv[])
   // Center frequency in Hz
   double centerFrequency = 3.5e9;
   // Distance between the mmWave BSs and the two co-located LTE and mmWave BSs in meters
-  double isd = 3000; // (interside distance) - increased for larger cell separation
+  double isd = 3600; // (interside distance) - increased for larger cell separation
   // Number of antennas in each UE
   int numAntennasMcUe = 1;
   // Number of antennas in each mmWave BS
@@ -399,7 +432,7 @@ main (int argc, char *argv[])
 
   uint8_t nMmWaveEnbNodes = 6;
   uint8_t nLteEnbNodes = 1;
-  uint32_t ues = 2;
+  uint32_t ues = 4;
   uint8_t nUeNodes = ues * nMmWaveEnbNodes;
 
   NS_LOG_INFO (" Bandwidth " << bandwidth << " centerFrequency " << double (centerFrequency)
@@ -505,7 +538,7 @@ main (int argc, char *argv[])
   
   // Calculate number of UEs per mmWave cell
   uint32_t numUEsPerCell = nUeNodes / nMmWaveEnbNodes;
-  double initialRadius = 450.0; // Initial distance from cell center in meters (increased for better separation)
+  double initialRadius = 470.0; // Initial distance from cell center in meters (increased for better separation)
   
   NS_LOG_UNCOND("Total UEs: " << nUeNodes << ", UEs per cell: " << numUEsPerCell);
 
@@ -540,16 +573,42 @@ main (int argc, char *argv[])
       }
   }
 
-  // Configure UE mobility with controlled random walk
-  uemobility.SetMobilityModel ("ns3::RandomWalk2dOutdoorMobilityModel",
-                              "Mode", StringValue ("Time"),
-                              "Time", StringValue ("2s"),
-                              "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=0.0]"),
-                              "Bounds", RectangleValue (Rectangle (0, maxXAxis, 0, maxYAxis)));
-  
-  uemobility.SetPositionAllocator(uePositionAlloc);
-  uemobility.Install(ueNodes);
 
+  // Assume ueNodes has 24 UEs (indices 0 to 23)
+  
+  // Create two NodeContainers for the two groups
+  NodeContainer ueGroup1; // UE 1-12 (indices 0 to 11)
+  NodeContainer ueGroup2; // UE 13-24 (indices 12 to 23)
+  
+  for (uint32_t i = 0; i < ueNodes.GetN(); ++i) {
+      if (i < 12) {
+          ueGroup1.Add(ueNodes.Get(i));
+      } else {
+          ueGroup2.Add(ueNodes.Get(i));
+      }
+  }
+  
+  // Set position allocator for all UEs, if needed
+  uemobility.SetPositionAllocator(uePositionAlloc);
+  
+  // For group 1 (UE 1-12): RandomWalk2dOutdoorMobilityModel
+  uemobility.SetMobilityModel("ns3::RandomWalk2dOutdoorMobilityModel",
+                              "Mode", StringValue("Time"),
+                              "Time", StringValue("2s"),
+                              "Speed", StringValue("ns3::ConstantRandomVariable[Constant=0.0]"),
+                              "Bounds", RectangleValue(Rectangle(0, maxXAxis, 0, maxYAxis)));
+  uemobility.Install(ueGroup1);
+  
+  // For group 2 (UE 13-24): ConstantVelocityMobilityModel
+  uemobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
+  uemobility.Install(ueGroup2);
+  
+  // Now set velocity for UE 13-24
+  for (uint32_t i = 0; i < ueGroup2.GetN(); ++i) {
+      Ptr<ConstantVelocityMobilityModel> mob = ueGroup2.Get(i)->GetObject<ConstantVelocityMobilityModel>();
+      mob->SetVelocity(Vector(550.0, 450.0, 0.0));
+  }
+  
   // Install mmWave, lte, mc Devices to the nodes
   NetDeviceContainer lteEnbDevs = mmwaveHelper->InstallLteEnbDevice (lteEnbNodes);
 
@@ -661,6 +720,7 @@ main (int argc, char *argv[])
       NS_LOG_UNCOND ("Simulation time is " << simTime << " seconds ");
       Simulator::Stop (Seconds (simTime));
       NS_LOG_INFO ("Run Simulation.");
+      Simulator::Schedule (Seconds (0.1), &LogUePositions);
       Simulator::Run ();
     }
 
