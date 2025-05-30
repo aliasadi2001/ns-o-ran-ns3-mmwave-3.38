@@ -195,7 +195,7 @@ static ns3::GlobalValue g_reducedPmValues ("reducedPmValues", "If true, use a su
 static ns3::GlobalValue
     g_hoSinrDifference ("hoSinrDifference",
                         "The value for which an handover between MmWave eNB is triggered",
-                        ns3::DoubleValue (3), ns3::MakeDoubleChecker<double> ());
+                        ns3::DoubleValue (100), ns3::MakeDoubleChecker<double> ());
 
 static ns3::GlobalValue
     g_indicationPeriodicity ("indicationPeriodicity",
@@ -207,7 +207,7 @@ static ns3::GlobalValue g_simTime ("simTime", "Simulation time in seconds", ns3:
 
 static ns3::GlobalValue g_outageThreshold ("outageThreshold",
                                            "SNR threshold for outage events [dB]", // use -1000.0 with NoAuto
-                                           ns3::DoubleValue (-100.0),
+                                           ns3::DoubleValue (-40.0),
                                            ns3::MakeDoubleChecker<double> ());
 
 static ns3::GlobalValue g_numberOfRaPreambles (
@@ -220,7 +220,7 @@ static ns3::GlobalValue
     g_handoverMode ("handoverMode",
                     "HO euristic to be used,"
                     "can be only \"NoAuto\", \"FixedTtt\", \"DynamicTtt\",   \"Threshold\"",
-                    ns3::StringValue ("NoAuto"), ns3::MakeStringChecker ());
+                    ns3::StringValue ("Threshold"), ns3::MakeStringChecker ());
 
 static ns3::GlobalValue g_e2TermIp ("e2TermIp", "The IP address of the RIC E2 termination",
                                     ns3::StringValue ("10.0.2.10"), ns3::MakeStringChecker ());
@@ -406,7 +406,7 @@ main (int argc, char *argv[])
   Config::SetDefault ("ns3::MmWavePhyMacCommon::CenterFreq", DoubleValue (centerFrequency));
  // Config::SetDefault("ns3::UniformPlanarArray::NumRows", UintegerValue(64));
  // Config::SetDefault("ns3::UniformPlanarArray::NumColumns", UintegerValue(64));
-  Config::SetDefault ("ns3::LogDistancePropagationLossModel::Exponent", DoubleValue (4.5)); // Set the path loss exponent
+  Config::SetDefault ("ns3::LogDistancePropagationLossModel::Exponent", DoubleValue (4.1)); // Set the path loss exponent
   Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceDistance", DoubleValue (1)); // Reference distance in meters
   Config::SetDefault ("ns3::LogDistancePropagationLossModel::ReferenceLoss", DoubleValue (10)); 
   Ptr<MmWaveHelper> mmwaveHelper = CreateObject<MmWaveHelper> ();
@@ -606,7 +606,7 @@ main (int argc, char *argv[])
   // Now set velocity for UE 13-24
   for (uint32_t i = 0; i < ueGroup2.GetN(); ++i) {
       Ptr<ConstantVelocityMobilityModel> mob = ueGroup2.Get(i)->GetObject<ConstantVelocityMobilityModel>();
-      mob->SetVelocity(Vector(550.0, 450.0, 0.0));
+      mob->SetVelocity(Vector(2000.0, 2000.0, 0.0));
   }
   
   // Install mmWave, lte, mc Devices to the nodes
