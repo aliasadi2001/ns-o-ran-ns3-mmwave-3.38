@@ -38,6 +38,39 @@
 
 #include <cmath>
 #include <stdlib.h> /* abs */
+#include <iostream>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <cstring>
+#include <vector>
+#include <random>
+#include <string.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <errno.h>
+#include <ns3/core-module.h>
+
+
+#define MAX_UES 12  // emad
+#define SHM_KEY_VARS 1234  // emad
+#define SHM_KEY_PERCENT 5678  // emad
+
+// Struct for UE data emad
+struct UEData {
+    int ueId;
+    int DLmax_sym;
+    int dl_MCS;
+};
+
+// Struct for shared variables emad
+struct SharedVars {
+    int cpp_flag;
+    int py_flag;
+    int num_ues;
+    int total_sym;
+    struct UEData ue_data[MAX_UES];
+};
 
 namespace ns3
 {
@@ -1062,6 +1095,10 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
     // ********************* END OF HARQ SECTION, START OF NEW DATA SCHEDULING *********************
     // //
 
+
+
+
+
     // get info on active DL flows
     if (symAvail > 0 && !m_ulOnly) // remaining symbols in current subframe after HARQ retx sched
     {
@@ -1321,14 +1358,18 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
         {
             allocated = false; // additional symbols allocated to this RNTI in this iteration
             int nRemSymPerFlow = remSym / nFlowsTot;
+            std::cout << "[outer while] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0 << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<< std::endl; 
             if (nRemSymPerFlow == 0)
             {
                 nRemSymPerFlow = 1;
+                std::cout << "[1365] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0 << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<< std::endl; 
+
             }
             if (m_fixedTti)
             {
                 nRemSymPerFlow = ceil((double)nRemSymPerFlow / (double)m_symPerSlot) *
                                  m_symPerSlot; // round up to nearest sym per TTI
+                std::cout << "[1372] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0 << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<< std::endl; 
             }
             while (remSym > 0)
             {
@@ -1336,19 +1377,33 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
                 // deficit = difference between requested and allocated symbols
                 int deficit = itUeInfo->second.m_maxDlSymbols - itUeInfo->second.m_dlSymbols;
                 NS_ASSERT(deficit >= 0);
+                std::cout << "[1380] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                             << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow <<
+                             "addSym = "<< addSym << "deficit = "<< deficit << std::endl; 
+
                 if (m_fixedTti)
                 {
                     deficit = ceil((double)deficit / (double)m_symPerSlot) *
                               m_symPerSlot; // round up to nearest sym per TTI
+                    std::cout << "[1388] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                             << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                             "addSym = "<< addSym << "deficit = "<< deficit << std::endl;
                 }
                 if (deficit > 0 && ((itUeInfo->second.m_dlSymbols +
                                      itUeInfo->second.m_dlSymbolsRetx) <= nSymPerFlow0))
                 {
+                    std::cout << "[1395] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                             << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                             "addSym = "<< addSym << "deficit = "<< deficit
+                             <<"(m_dlSymbols + m_dlSymbolsRetx) <= nSymPerFlow0 : " <<itUeInfo->second.m_dlSymbols <<"+"<<itUeInfo->second.m_dlSymbolsRetx<<" <=" << nSymPerFlow0 << std::endl;
                     if (deficit < nRemSymPerFlow)
                     {
                         if (deficit > remSym)
                         {
                             addSym = remSym;
+                            std::cout << "[1404] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                                     << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                                    "addSym = "<< addSym << "deficit = "<< deficit << std::endl;
                         }
                         else
                         {
@@ -1358,6 +1413,10 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
                             int extra = (nRemSymPerFlow - addSym) / nFlowsTot;
                             nSymPerFlow0 += extra;   // add extra to average symbols
                             nRemSymPerFlow += extra; // add extra to average symbols
+                            std::cout << "[1416] nFlowDL -> " << nFlowsDl<<"nFlowtot -> " << nFlowsTot << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                                 << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                                "addSym = "<< addSym << "deficit = "<< deficit<<
+                                 "extra"<<extra << std::endl;
                         }
                     }
                     else
@@ -1365,21 +1424,31 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
                         if (nRemSymPerFlow > remSym)
                         {
                             addSym = remSym;
+                            std::cout << "[1427] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                                 << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                                "addSym = "<< addSym << "deficit = "<< deficit << std::endl;
                         }
                         else
                         {
                             addSym = nRemSymPerFlow;
+                            std::cout << "[1434] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                                 << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                                "addSym = "<< addSym << "deficit = "<< deficit << std::endl;
                         }
                     }
                     allocated = true;
                 }
                 itUeInfo->second.m_dlSymbols += addSym;
                 remSym -= addSym;
+                std::cout << "[1443] nFlowDL -> " << nFlowsDl << " remSym-> " << remSym << " nSymPerFlow0-> "  << nSymPerFlow0
+                            << " nRemSymPerFlow (remSym / nFlowsTot) -> " << nRemSymPerFlow<<
+                            "addSym = "<< addSym << "deficit = "<< deficit <<"m_dlSymbols-> " <<itUeInfo->second.m_dlSymbols << std::endl;
                 NS_ASSERT(remSym >= 0);
 
                 addSym = 0;
                 // deficit = difference between requested and allocated symbols
                 deficit = itUeInfo->second.m_maxUlSymbols - itUeInfo->second.m_ulSymbols;
+
                 NS_ASSERT(deficit >= 0);
                 if (m_fixedTti)
                 {
@@ -1448,13 +1517,276 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
     // such that all DL slots are contiguous (at beginning of subframe)
     // and all UL slots are contiguous (at end of subframe)
     itUeInfo = itUeInfoStart;
-
+    std::cout << "line[1520] symIdx-> "<<(int)symIdx << std::endl;
     // ulSymIdx -= totUlSymActual; // symbols reserved for control at end of subframe before UL ctrl
     NS_ASSERT(symIdx > 0); // Should be at least 1, as the DL CTRL TTI at the beginning of the slot
                            // should have been scheduled already
+    int sedighi = 0;
+    int counter = 0;
+
+    
+    
+    // Create shared memory for variables emad write
+    int shmid_vars = shmget(SHM_KEY_VARS, sizeof(SharedVars), IPC_CREAT | 0666);
+    if (shmid_vars < 0) {
+        std::cerr << "shmget vars failed: " << strerror(errno) << std::endl;
+        return;
+    }
+    std::cout << "[1535]C++: Created shared memory with key 1234, shmid = " << shmid_vars << std::endl;
+    // Attach shared memory for variables emad write
+    SharedVars *shared_vars = (SharedVars *)shmat(shmid_vars, NULL, 0);
+    if (shared_vars == (void *)-1) {
+        std::cerr << "shmat vars failed: " << strerror(errno) << std::endl;
+        shmctl(shmid_vars, IPC_RMID, NULL);
+        return;
+    }
+
+    // Create shared memory for percentages
+    int shmid_percent = shmget(SHM_KEY_PERCENT, sizeof(double) * MAX_UES, IPC_CREAT | 0666);
+    if (shmid_percent < 0) {
+        std::cerr << "shmget percent failed: " << strerror(errno) << std::endl;
+        shmdt(shared_vars);
+        shmctl(shmid_vars, IPC_RMID, NULL);
+        return;
+    }
+
+    // Attach shared memory for percentages
+    double *percentages = (double *)shmat(shmid_percent, NULL, 0);
+    if (percentages == (void *)-1) {
+        std::cerr << "shmat percent failed: " << strerror(errno) << std::endl;
+        shmdt(shared_vars);
+        shmctl(shmid_vars, IPC_RMID, NULL);
+        shmctl(shmid_percent, IPC_RMID, NULL);
+        return;
+    }
+
+
+    //     // Create POSIX shared memory for variables
+    // int fd_vars = shm_open(SHM_KEY_VARS, O_CREAT | O_RDWR, 0666);
+    // if (fd_vars == -1) {
+    //     std::cerr << "shm_open vars failed: " << strerror(errno) << std::endl;
+    //     return;
+    // }
+    //     // Set size of shared memory
+    // if (ftruncate(fd_vars, sizeof(SharedVars)) == -1) {
+    //     std::cerr << "ftruncate vars failed: " << strerror(errno) << std::endl;
+    //     close(fd_vars);
+    //     return;
+    // }
+    //     // Map shared memory
+    // SharedVars *shared_vars = (SharedVars *)mmap(NULL, sizeof(SharedVars), PROT_READ | PROT_WRITE, MAP_SHARED, fd_vars, 0);
+    // if (shared_vars == MAP_FAILED) {
+    //     std::cerr << "mmap vars failed: " << strerror(errno) << std::endl;
+    //     close(fd_vars);
+    //     return;
+    // }
+    int q = 0;
+    do
+    {
+        /* code */
+        UeSchedInfo& ueSchedInfo = itUeInfo->second;
+        if(ueSchedInfo.m_dlSymbols > 0){
+            sedighi += ueSchedInfo.m_dlSymbols;
+            counter ++;
+            std::cout << "[1591]itueinfo->first: "<< itUeInfo->first << " counter: "<< (int) sedighi << std::endl;
+            shared_vars->ue_data[q] = {itUeInfo->first,ueSchedInfo.m_maxDlSymbols, ueSchedInfo.m_dlMcs};
+            q ++;
+        }
+        itUeInfo ++;
+        if (itUeInfo == ueInfo.end())
+        { // loop around to first RNTI in map
+            itUeInfo = ueInfo.begin();
+        }
+    } while (itUeInfo != itUeInfoStart);
+    int emad = sedighi;
+
+
+    std::vector<float> alloc_percentages(MAX_UES);
+    // Initialize shared variables
+    shared_vars->cpp_flag = 1;
+    shared_vars->py_flag = 0;
+    shared_vars->num_ues = counter;
+    shared_vars->total_sym = sedighi;
+    
+    std::cout << "[1611] C++: Created shared memory with name " << SHM_KEY_VARS << std::endl;
+
+
+    // // Create POSIX shared memory for percentages
+    // int fd_percent = shm_open(SHM_KEY_PERCENT, O_CREAT | O_RDWR, 0666);
+    // if (fd_percent == -1) {
+    //     std::cerr << "shm_open percent failed: " << strerror(errno) << std::endl;
+    //     munmap(shared_vars, sizeof(SharedVars));
+    //     close(fd_vars);
+    //     return;
+    // }
+
+    // if (ftruncate(fd_percent, sizeof(double) * MAX_UES) == -1) {
+    //     std::cerr << "ftruncate percent failed: " << strerror(errno) << std::endl;
+    //     munmap(shared_vars, sizeof(SharedVars));
+    //     close(fd_vars);
+    //     close(fd_percent);
+    //     return;
+    // }
+
+    // double *percentages = (double *)mmap(NULL, sizeof(double) * MAX_UES, PROT_READ | PROT_WRITE, MAP_SHARED, fd_percent, 0);
+    // if (percentages == MAP_FAILED) {
+    //     std::cerr << "mmap percent failed: " << strerror(errno) << std::endl;
+    //     munmap(shared_vars, sizeof(SharedVars));
+    //     close(fd_vars);
+    //     close(fd_percent);
+    //     return;
+    // }
+
+    for (int i = 0; i < MAX_UES; i++)
+    {
+        percentages[i] = 0.0;
+    }
+    
+    // Wait for Python to write percentages
+    std::cout << "[1646] C++: Waiting for Python to write percentages..." << std::endl;
+    int timeout = 30; // Timeout after 30 seconds
+    while (shared_vars->py_flag == 0 && timeout > 0) {
+        std::cout << "[1649] C++: py_flag = " << shared_vars->py_flag << std::endl;
+        sleep(1);
+        timeout--;
+    }
+
+    if (shared_vars ->py_flag == 1){
+                // Read percentages
+        std::cout << "[1665] C++: Received percentages: ";
+        for (int i = 0; i < shared_vars->num_ues; i++) {
+            std::cout << percentages[i] << " ";
+        }
+        std::cout << std::endl;
+    }else{
+        std::cerr << "[1662] C++: Timed out waiting for Python to write percentages"<<std::endl;
+    }
+    
+    // Read percentages
+    // std::cout << "C++: Received percentages: ";
+    // for (int i = 0; i < shared_vars->num_ues; i++) {
+    //     std::cout << percentages[i] << " ";
+    // }
+    // std::cout << std::endl;
+
+
+    // /*shared memory beetwen c++ and rl_agent.py. c++ -> python : cpp-flag + py-flag + number of ue have request + availabel symbol + ue_data[id , srequested symbol , MCS]
+    //                                              python -> c++ : percentages of each ue , reward(I know isn't correct)*/
+    // const char* SHM_NAME = "mac_rl_exchange";
+    // const int MAX_UES = 12;
+    // const size_t SHM_SIZE = 4 + 4 + 4 + 4 + MAX_UES * (4 + 4 + 4) + MAX_UES * 4 + 4;
+    // int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    // if (shm_fd == -1) {
+    //     std::cerr << "Error opening shared memory: " << std::strerror(errno) << std::endl;
+    //     return ;
+    // }
+    // if (ftruncate(shm_fd, SHM_SIZE) == -1) { // Set size
+    //     std::cerr << "Error setting shared memory size: " << std::strerror(errno) << std::endl;
+    //     return;
+    // }
+
+    // // Map shared memory
+    // void* shm_ptr = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    // if (shm_ptr == MAP_FAILED) {
+    //     std::cerr << "Error mapping shared memory: " << std::strerror(errno) << std::endl;
+    //     return;
+    // }
+    // // Pointers to shared memory regions
+    // int* cpp_flag = (int*)shm_ptr;
+    // int* py_flag = cpp_flag + 1;
+    // int* num_ues = py_flag + 1;
+    // int* total_symbols = num_ues + 1;
+    // int* ue_data = total_symbols + 1;
+    // float* percentages = (float*)(ue_data + 3 * MAX_UES);
+    // float* reward = percentages + MAX_UES;
+
+    // // Write UE data to shared memory
+    // *num_ues = counter;
+    // *total_symbols = sedighi;
+
+    // do{
+    //     UeSchedInfo& ueSchedInfo = itUeInfo->second;
+    //     int i = itUeInfo->first;
+    //     ue_data[i * 3] = itUeInfo->first;
+    //     ue_data[i * 3 + 1] = ueSchedInfo.m_maxDlSymbols;
+    //     ue_data[i * 3 + 2] = ueSchedInfo.m_dlMcs;
+        
+    //     itUeInfo ++;
+    //     if (itUeInfo == ueInfo.end())
+    //     { // loop around to first RNTI in map
+    //         itUeInfo = ueInfo.begin();
+    //     }
+    // } while (itUeInfo != itUeInfoStart);
+    // *cpp_flag = 1; // Signal new data
+
+    // while (*py_flag != 1)
+    // {
+    //     usleep(10000); // sleep 10ms to avoid busy-waiting
+    // }
+    
+    // Read percentages and reward
+    // std::cout << "Iteration " << iteration << ": Read percentages: ";
+    // Read percentages
+    // std::cout <<"C++: Read percentages: "<< std::endl;
+    int y =0;
+    do{
+        UeSchedInfo& ueSchedInfo = itUeInfo->second;
+        
+        if(ueSchedInfo.m_dlSymbols > 0){
+        
+        int i = itUeInfo->first;
+        alloc_percentages[i] = percentages[y];
+        
+        ueSchedInfo.m_dlSymbols =ceil(sedighi * alloc_percentages[i]);
+        emad = emad - ceil(sedighi * alloc_percentages[i]);
+        if (emad < 0)
+        {
+        ueSchedInfo.m_dlSymbols += emad;
+        emad = 0;
+        }
+        std::cout <<"[1742] percentage: "<<alloc_percentages[i] << " ue = "<< i << " dlsymbols = " << (int) ueSchedInfo.m_dlSymbols << std::endl;;
+        }
+        
+        
+        itUeInfo ++;
+        y++;
+        if (itUeInfo == ueInfo.end())
+        { // loop around to first RNTI in map
+            itUeInfo = ueInfo.begin();
+        }
+    } while (itUeInfo != itUeInfoStart);
+    // std::cout << ", Reward: " << *reward << std::endl;
+    std::cout << "+-+-+-+-+-+ completed +-+-+-+-+-+"<< std::endl;
+    
+
+    // *py_flag = 0;
+    
+    // do
+    // {
+        // /* code */
+        // float percentage;
+        // UeSchedInfo& ueSchedInfo = itUeInfo->second;
+        // if(ueSchedInfo.m_dlSymbols > 0){
+            // std::cout << "** UE "<< itUeInfo->first<<" ** " << std::endl;
+            // std::cout << "enter a percentage of this ue:  "<< itUeInfo->first<<": " << std::endl;
+            // std::cin >> percentage;
+            // ueSchedInfo.m_dlSymbols =ceil(sedighi * percentage /100);
+            // emad = emad - ceil(sedighi * percentage /100);
+            // if (emad < 0)
+            // ueSchedInfo.m_dlSymbols -= 1;
+
+        // }
+        // itUeInfo ++;
+        // if (itUeInfo == ueInfo.end())
+        // { // loop around to first RNTI in map
+            // itUeInfo = ueInfo.begin();
+        // }
+    // } while (itUeInfo != itUeInfoStart);
+    
     do
     {
         UeSchedInfo& ueSchedInfo = itUeInfo->second;
+        std::cout << "[1782] ueSchedInfo.m_dlSymbols =  "<< (int)ueSchedInfo.m_dlSymbols << std::endl;
         if (ueSchedInfo.m_dlSymbols > 0)
         {
             DciInfoElementTdma dci;
@@ -1471,6 +1803,10 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
                     dci.m_mcs--;
                     dci.m_tbSize = m_amc->CalculateTbSize (dci.m_mcs, dci.m_numSym) / 8;
             }*/
+            std::cout << "[1799] dci.m_rnti-> "<< dci.m_rnti << " dci.m_format " << (int)dci.m_format <<
+                        " dci.m_symStart " << (int)dci.m_symStart <<" symIdx "<<(int)symIdx <<" dci.m_numSym "<<(int)dci.m_numSym
+                        << " ueSchedInfo.m_dlSymbols " << (int)ueSchedInfo.m_dlSymbols<< 
+                        std::endl;
             NS_ASSERT(symIdx <=
                       m_phyMacConfig->GetSymbPerSlot() - m_phyMacConfig->GetUlCtrlSymbols());
             dci.m_rv = 0;
@@ -1488,6 +1824,11 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
                               << " mcs " << +dci.m_mcs << " harqId " << +dci.m_harqProcess << " rv "
                               << +dci.m_rv << " in frame " << ret.m_sfnSf.m_frameNum << " subframe "
                               << +ret.m_sfnSf.m_sfNum << " slot " << +ret.m_sfnSf.m_slotNum);
+            std::cout<<"[1544] UE" << dci.m_rnti << " gets DL OFDM symbols " << +dci.m_symStart << "-"
+                              << +(dci.m_symStart + dci.m_numSym - 1) << " tbs " << dci.m_tbSize
+                              << " mcs " << +dci.m_mcs << " harqId " << +dci.m_harqProcess << " rv "
+                              << +dci.m_rv << " in frame " << ret.m_sfnSf.m_frameNum << " subframe "
+                              << +ret.m_sfnSf.m_sfNum << " slot " << +ret.m_sfnSf.m_slotNum << std::endl;
 
             if (m_harqOn == true)
             { // store DCI for HARQ buffer
@@ -1686,6 +2027,20 @@ MmWaveFlexTtiMacScheduler::DoSchedTriggerReq(
     ret.m_slotAllocInfo.m_ttiAllocInfo.push_back(ulCtrlTti);
 
     m_macSchedSapUser->SchedConfigInd(ret);
+
+        // Cleanup
+    // shmdt(shared_vars);    // last step
+    // shmdt(percentages);   // last step
+    // shmctl(shmid_vars, IPC_RMID, NULL);   // last step
+    // shmctl(shmid_percent, IPC_RMID, NULL);  // last step
+    // // Cleanup
+    // munmap(shared_vars, sizeof(SharedVars));
+    // munmap(percentages, sizeof(double) * MAX_UES);
+    // close(fd_vars);
+    // close(fd_percent);
+    // shm_unlink(SHM_KEY_VARS);
+    // shm_unlink(SHM_KEY_PERCENT);
+
     return;
 }
 
@@ -2047,3 +2402,4 @@ MmWaveFlexTtiMacScheduler::DoCschedUeReleaseReq(
 } // namespace mmwave
 
 } // namespace ns3
+
