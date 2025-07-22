@@ -345,4 +345,3 @@ class MmWaveFlexTtiMacScheduler : public MmWaveMacScheduler
 } // namespace ns3
 
 #endif /* SRC_MMWAVE_MODEL_MMWAVE_RR_MAC_SCHEDULER_H_ */
-
